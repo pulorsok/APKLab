@@ -7,6 +7,7 @@ import * as glob from "glob";
 import { outputChannel } from "../data/constants";
 import { quarkSummaryReportHTML } from "../utils/quark-html";
 import { executeProcess } from "../utils/executor";
+import { Uri } from "vscode";
 
 /**
  * Read and parse the JSON file of quark analysis report.
@@ -262,7 +263,7 @@ export namespace Quark {
      * @return if quark installed or not
      */
     export function checkQuarkInstalled(): boolean {
-        const cmd = "quark";
+        const cmd = `cd ${path.join(os.homedir(), ".quark-engine")} ; quark`;
 
         outputChannel.appendLine(`exec: ${cmd}`);
 
@@ -286,14 +287,41 @@ export namespace Quark {
         projectDir: string
     ): Promise<void> {
         const jsonReportPath = path.join(projectDir, `quarkReport.json`);
-        const cmd = `cd ${path.join(os.homedir(), ".quark-engine")} ; quark`;
+        const projectQuarkDir = path.join(projectDir, `quark`);
+
+        if (!fs.existsSync(projectQuarkDir)) {
+            fs.mkdirSync(projectQuarkDir);
+        }
+
+        const cmd = `cd ${projectQuarkDir} ; quark`;
         await executeProcess({
             name: "Quark analysis",
             report: `Analyzing ${apkFilePath}`,
             command: cmd,
-            args: ["-a", apkFilePath, "-o", jsonReportPath],
+            args: ["-a", apkFilePath, "-s", "-c", "-o", jsonReportPath],
             shell: true,
         });
+    }
+
+    export async function showCallGraph(projectDir: string): Promise<void> {
+        const callGraphPath = path.join(
+            projectDir,
+            `quark`,
+            `rules_classification.png`
+        );
+
+        if (!fs.existsSync(callGraphPath)) {
+            vscode.window.showErrorMessage(
+                "APKLab: The tree map file doesn't exist!"
+            );
+            return;
+        }
+        const uri = Uri.file(callGraphPath);
+        await vscode.commands.executeCommand(
+            "vscode.open",
+            uri,
+            vscode.ViewColumn.One
+        );
     }
 
     /**
@@ -332,6 +360,8 @@ export namespace Quark {
                         ]
                     );
                     break;
+                case "callgraph":
+                    showCallGraph(projectDir);
             }
         });
     }
